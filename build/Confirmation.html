@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Confirmation Page</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background-color: #cfe8fc;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+    }
+    h1 {
+      font-size: 2.5rem;
+      font-weight: bold;
+      color: #1e40af;
+      margin-bottom: 20px;
+      text-align: center;
+    }
+    .button-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+      margin-top: 20px;
+    }
+    button {
+      padding: 10px 20px;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 1rem;
+    }
+    .download-button {
+      background-color: #22c55e;
+    }
+    .download-button:hover {
+      background-color: #15803d;
+    }
+    .back-button {
+      background-color: #2563eb;
+    }
+    .back-button:hover {
+      background-color: #1d4ed8;
+    }
+  </style>
+</head>
+<body>
+  <h1>Merci pour votre achat</h1>
+  <div class="button-container">
+    <button class="download-button" onclick="downloadReceipt()">Télécharger mon reçu</button>
+    <button class="back-button" onclick="goHome()">Retour à l'accueil</button>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script>
+    const cartData = JSON.parse(localStorage.getItem("cartData")) || { cartData: [], totalPrice: 0 };
+    const generatedCode = generateRandomCode();
+
+    // Fonction pour générer un code aléatoire
+    function generateRandomCode() {
+      const chars = "ABCD0123456789";
+      let code = "";
+      for (let i = 0; i < 4; i++) {
+        code += chars.charAt(Math.floor(Math.random() * chars.length));
+      }
+      sendCodeToESP32(code); // Envoi au serveur
+      return code;
+    }
+
+    // Fonction pour envoyer le code au serveur
+    async function sendCodeToESP32(code) {
+      try {
+        const response = await fetch("http://siashop.duckdns.org:5000/", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ code }),
+        });
+
+        if (response.ok) {
+          console.log("Code envoyé à l'ESP32:", code);
+        } else {
+          console.error("Erreur lors de l'envoi du code:", response.statusText);
+        }
+      } catch (error) {
+        console.error("Erreur de communication avec l'ESP32:", error);
+      }
+    }
+
+    // Fonction pour télécharger le reçu
+    function downloadReceipt() {
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF();
+      let y = 60;
+
+      doc.setDrawColor(0, 0, 255);
+      doc.setLineWidth(1.5);
+      doc.roundedRect(10, 20, 190, 170, 5, 5);
+
+      doc.addImage('favicon.png', 'PNG', 20, 25, 30, 30);
+      doc.addImage('favicon.png', 'PNG', 160, 25, 30, 30);
+
+      doc.setFont("Helvetica", "bold");
+      doc.setFontSize(18);
+      doc.text("Reçu d'Achat", 105, 40, { align: "center" });
+
+      doc.setFontSize(13);
+      doc.setTextColor(23, 17, 114);
+      doc.text("Merci d'avoir choisi notre boutique !", 20, y);
+      y += 15;
+
+      doc.setFont("Helvetica", "normal");
+      doc.setFontSize(12);
+      doc.text("Articles et Collections:", 20, y);
+      y += 10;
+
+      cartData.cartData.forEach((item, index) => {
+        doc.text(`${index + 1}. Collection: ${item.collection} - Quantité: ${item.codes.length}`, 20, y);
+        y += 10;
+
+        item.codes.forEach((code) => {
+          doc.text(`   - Code: ${code}`, 30, y);
+          y += 10;
+        });
+      });
+
+      y += 10;
+      doc.setFont("Helvetica", "bold");
+      doc.setTextColor(84, 76, 227);
+      doc.text(`Code d'accès de la porte: ${generatedCode}`, 20, y);
+      y += 10;
+
+      doc.setFont("Helvetica", "bold");
+      doc.text(`Total des achats: ${cartData.totalPrice} FCFA`, 20, y);
+      y += 20;
+
+      doc.setFont("Helvetica", "italic");
+      doc.setFontSize(10);
+      doc.setTextColor(255, 0, 0);
+      doc.text(
+        "NB: Veuillez bien renseigner le code de l'article. Toute tentative de plus de deux fois verrouille la boutique.",
+        20,
+        y,
+        { maxWidth: 170 }
+      );
+
+      doc.save("recu_client.pdf");
+    }
+
+    function goHome() {
+      window.location.href = "/"; // Remplacez par l'URL de votre page d'accueil
+    }
+  </script>
+</body>
+</html>
